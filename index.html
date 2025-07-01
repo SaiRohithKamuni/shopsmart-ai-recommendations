@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShopSmart - AI Product Recommendations</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #6366f1;
+            --secondary: #8b5cf6;
+            --accent: #06b6d4;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --dark: #0f172a;
+            --light: #f8fafc;
+            --glass: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            --shadow-lg: 0 35px 60px -12px rgba(0, 0, 0, 0.4);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            min-height: 100vh;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            backdrop-filter: blur(20px);
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, 
+                rgba(255, 255, 255, 0.1) 0%, 
+                transparent 25%, 
+                transparent 75%, 
+                rgba(255, 255, 255, 0.05) 100%);
+            pointer-events: none;
+        }
+
+        .header {
+            background: linear-gradient(135deg, 
+                rgba(99, 102, 241, 0.9) 0%, 
+                rgba(139, 92, 246, 0.9) 50%, 
+                rgba(6, 182, 212, 0.9) 100%);
+            backdrop-filter: blur(20px);
+            color: white;
+            padding: 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: repeating-conic-gradient(
+                from 0deg at 50% 50%,
+                rgba(255, 255, 255, 0.03) 0deg,
+                rgba(255, 255, 255, 0.08) 60deg,
+                rgba(255, 255, 255, 0.03) 120deg
+            );
+            animation: rotate 20s linear infinite;
+        }
+
+        @keyframes rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .header h1 {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 800;
+            margin-bottom: 12px;
+            position: relative;
+            z-index: 2;
+            background: linear-gradient(135deg, #ffffff, #e2e8f0, #ffffff);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            letter-spacing: -0.02em;
+        }
+
+        .header p {
+            font-size: 1.125rem;
+            position: relative;
+            z-index: 2;
+            opacity: 0.95;
+            font-weight: 400;
+            line-height: 1.6;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 32px;
+            padding: 32px;
+            min-height: 70vh;
+        }
+
+        .user-panel {
+            backdrop-filter: blur(16px);
+            background: rgba(255, 255, 255, 0.12);
+            padding: 32px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            height: fit-content;
+            position: sticky;
+            top: 32px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .user-panel h2 {
+            color: white;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .user-select {
+            width: 100%;
+            padding: 16px 20px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            font-size: 16px;
+            margin-bottom: 24px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            color: white;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 500;
+        }
+
+        .user-select option {
+            background: var(--dark);
+            color: white;
+        }
+
+        .user-select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            backdrop-filter: blur(16px);
+            background: rgba(255, 255, 255, 0.15);
+            padding: 20px;
+            border-radius: 20px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.6s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .stat-card:hover::before {
+            left: 100%;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #10b981, #06b6d4);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .recommendations {
+            backdrop-filter: blur(16px);
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 24px;
+            padding: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .recommendations h2 {
+            color: white;
+            margin-bottom: 32px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+        }
+
+        .product-card {
+            backdrop-filter: blur(16px);
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 24px;
+            padding: 24px;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .product-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, 
+                rgba(255, 255, 255, 0.1), 
+                rgba(255, 255, 255, 0.05));
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .product-card:hover {
+            transform: translateY(-12px) scale(1.02);
+            box-shadow: 0 32px 64px rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .product-card:hover::before {
+            opacity: 1;
+        }
+
+        .product-image {
+            width: 100%;
+            height: 160px;
+            background: linear-gradient(135deg, 
+                var(--primary) 0%, 
+                var(--secondary) 50%, 
+                var(--accent) 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .product-image::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: repeating-linear-gradient(
+                45deg,
+                rgba(255, 255, 255, 0.1) 0px,
+                rgba(255, 255, 255, 0.1) 20px,
+                transparent 20px,
+                transparent 40px
+            );
+            animation: shimmer 4s infinite linear;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100px) translateY(-100px); }
+            100% { transform: translateX(100px) translateY(100px); }
+        }
+
+        .product-name {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .product-category {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.875rem;
+            margin-bottom: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .product-price {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #10b981, #059669);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 12px;
+        }
+
+        .recommendation-score {
+            background: linear-gradient(135deg, var(--accent), var(--primary));
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .purchase-history {
+            margin-top: 24px;
+            padding: 24px;
+            backdrop-filter: blur(16px);
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .purchase-history h3 {
+            color: white;
+            margin-bottom: 16px;
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+
+        .purchase-item {
+            backdrop-filter: blur(8px);
+            background: rgba(255, 255, 255, 0.1);
+            padding: 12px 16px;
+            margin: 8px 0;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            color: rgba(255, 255, 255, 0.9);
+            border-left: 4px solid var(--accent);
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .purchase-item:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateX(4px);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 1.125rem;
+            font-weight: 500;
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-top: 4px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .algorithm-info {
+            background: linear-gradient(135deg, 
+                rgba(99, 102, 241, 0.8) 0%, 
+                rgba(139, 92, 246, 0.8) 100%);
+            backdrop-filter: blur(16px);
+            color: white;
+            padding: 24px;
+            margin: 24px 0;
+            border-radius: 20px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .algorithm-info h3 {
+            margin-bottom: 8px;
+            font-size: 1.125rem;
+            font-weight: 700;
+        }
+
+        .algorithm-info p {
+            font-size: 0.875rem;
+            line-height: 1.6;
+            opacity: 0.95;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 16px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            margin: 12px 6px;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(8px);
+        }
+
+        .btn:hover {
+            transform: translateY(-4px) scale(1.05);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(-2px) scale(1.02);
+        }
+
+        /* Floating elements */
+        .floating-element {
+            position: absolute;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+            backdrop-filter: blur(20px);
+            pointer-events: none;
+        }
+
+        .floating-element:nth-child(1) {
+            width: 80px;
+            height: 80px;
+            top: 10%;
+            left: 5%;
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .floating-element:nth-child(2) {
+            width: 120px;
+            height: 120px;
+            top: 60%;
+            right: 8%;
+            animation: float 8s ease-in-out infinite reverse;
+        }
+
+        .floating-element:nth-child(3) {
+            width: 60px;
+            height: 60px;
+            bottom: 20%;
+            left: 10%;
+            animation: float 7s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 24px;
+            }
+            
+            .user-panel {
+                position: static;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2.5rem;
+            }
+            
+            .products-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .main-content {
+                padding: 20px;
+            }
+            
+            .container {
+                margin: 10px;
+                border-radius: 24px;
+            }
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, var(--secondary), var(--primary));
+        }
+    </style>
+</head>
+<body>
+    <!-- Floating background elements -->
+    <div class="floating-element"></div>
+    <div class="floating-element"></div>
+    <div class="floating-element"></div>
+
+    <div class="container">
+        <div class="header">
+            <h1>🛍️ ShopSmart AI</h1>
+            <p>Intelligent Product Recommendations using Machine Learning & Collaborative Filtering</p>
+        </div>
+
+        <div class="main-content">
+            <div class="user-panel">
+                <h2>👤 User Dashboard</h2>
+                <select id="userSelect" class="user-select">
+                    <option value="">Select a user...</option>
+                </select>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number" id="totalPurchases">0</div>
+                        <div class="stat-label">Total Purchases</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="totalSpent">$0</div>
+                        <div class="stat-label">Total Spent</div>
+                    </div>
+                </div>
+
+                <div class="algorithm-info">
+                    <h3>🤖 AI Algorithm</h3>
+                    <p>Using Collaborative Filtering + Content-Based ML to analyze purchase patterns and user similarities</p>
+                </div>
+
+                <div class="purchase-history" id="purchaseHistory">
+                    <h3>📦 Recent Purchases</h3>
+                    <div id="purchaseItems">Select a user to view purchase history</div>
+                </div>
+            </div>
+
+            <div class="recommendations">
+                <h2>✨ Personalized Recommendations</h2>
+                <div id="recommendationsContent" class="loading">
+                    Select a user to generate AI-powered recommendations...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sample e-commerce data
+        const products = [
+            { id: 1, name: "Wireless Bluetooth Headphones", category: "Electronics", price: 79.99, emoji: "🎧" },
+            { id: 2, name: "Smartphone Case", category: "Electronics", price: 24.99, emoji: "📱" },
+            { id: 3, name: "Running Shoes", category: "Sports", price: 129.99, emoji: "👟" },
+            { id: 4, name: "Yoga Mat", category: "Sports", price: 35.99, emoji: "🧘" },
+            { id: 5, name: "Coffee Maker", category: "Home", price: 89.99, emoji: "☕" },
+            { id: 6, name: "Laptop Stand", category: "Office", price: 45.99, emoji: "💻" },
+            { id: 7, name: "Skincare Set", category: "Beauty", price: 64.99, emoji: "🧴" },
+            { id: 8, name: "Backpack", category: "Fashion", price: 55.99, emoji: "🎒" },
+            { id: 9, name: "Gaming Mouse", category: "Electronics", price: 39.99, emoji: "🖱️" },
+            { id: 10, name: "Protein Powder", category: "Health", price: 49.99, emoji: "🥤" },
+            { id: 11, name: "Desk Lamp", category: "Office", price: 32.99, emoji: "💡" },
+            { id: 12, name: "Travel Mug", category: "Home", price: 19.99, emoji: "🧳" },
+            { id: 13, name: "Fitness Tracker", category: "Electronics", price: 99.99, emoji: "⌚" },
+            { id: 14, name: "Cookbook", category: "Books", price: 28.99, emoji: "📚" },
+            { id: 15, name: "Sunglasses", category: "Fashion", price: 75.99, emoji: "🕶️" }
+        ];
+
+        // Sample user purchase data
+        const userData = [
+            { 
+                id: 1, 
+                name: "Alex Johnson", 
+                purchases: [1, 2, 9, 6, 11],
+                ratings: {1: 5, 2: 4, 9: 5, 6: 4, 11: 3}
+            },
+            { 
+                id: 2, 
+                name: "Sarah Chen", 
+                purchases: [3, 4, 10, 13, 7],
+                ratings: {3: 5, 4: 5, 10: 4, 13: 5, 7: 4}
+            },
+            { 
+                id: 3, 
+                name: "Mike Rodriguez", 
+                purchases: [5, 12, 14, 8, 15],
+                ratings: {5: 4, 12: 5, 14: 4, 8: 3, 15: 5}
+            },
+            { 
+                id: 4, 
+                name: "Emily Davis", 
+                purchases: [1, 7, 8, 15, 2],
+                ratings: {1: 4, 7: 5, 8: 4, 15: 5, 2: 3}
+            },
+            { 
+                id: 5, 
+                name: "James Wilson", 
+                purchases: [9, 6, 11, 13, 1],
+                ratings: {9: 5, 6: 4, 11: 4, 13: 5, 1: 4}
+            }
+        ];
+
+        // ML Recommendation Engine
+        class RecommendationEngine {
+            constructor(users, products) {
+                this.users = users;
+                this.products = products;
+                this.userItemMatrix = this.buildUserItemMatrix();
+            }
+
+            buildUserItemMatrix() {
+                const matrix = {};
+                this.users.forEach(user => {
+                    matrix[user.id] = {};
+                    this.products.forEach(product => {
+                        matrix[user.id][product.id] = user.ratings[product.id] || 0;
+                    });
+                });
+                return matrix;
+            }
+
+            // Collaborative Filtering - User-based
+            calculateUserSimilarity(user1Id, user2Id) {
+                const user1Ratings = this.userItemMatrix[user1Id];
+                const user2Ratings = this.userItemMatrix[user2Id];
+                
+                let sum1 = 0, sum2 = 0, sum1Sq = 0, sum2Sq = 0, sumProducts = 0;
+                let n = 0;
+
+                for (let itemId in user1Ratings) {
+                    if (user1Ratings[itemId] > 0 && user2Ratings[itemId] > 0) {
+                        sum1 += user1Ratings[itemId];
+                        sum2 += user2Ratings[itemId];
+                        sum1Sq += Math.pow(user1Ratings[itemId], 2);
+                        sum2Sq += Math.pow(user2Ratings[itemId], 2);
+                        sumProducts += user1Ratings[itemId] * user2Ratings[itemId];
+                        n++;
+                    }
+                }
+
+                if (n === 0) return 0;
+
+                const numerator = sumProducts - (sum1 * sum2 / n);
+                const denominator = Math.sqrt((sum1Sq - Math.pow(sum1, 2) / n) * (sum2Sq - Math.pow(sum2, 2) / n));
+                
+                return denominator === 0 ? 0 : numerator / denominator;
+            }
+
+            // Content-based filtering
+            calculateContentSimilarity(product1, product2) {
+                let similarity = 0;
+                
+                // Category similarity
+                if (product1.category === product2.category) {
+                    similarity += 0.7;
+                }
+                
+                // Price similarity (inverse of price difference)
+                const priceDiff = Math.abs(product1.price - product2.price);
+                const maxPrice = Math.max(product1.price, product2.price);
+                similarity += (1 - priceDiff / maxPrice) * 0.3;
+                
+                return similarity;
+            }
+
+            generateRecommendations(userId, numRecommendations = 6) {
+                const currentUser = this.users.find(u => u.id === userId);
+                if (!currentUser) return [];
+
+                const userPurchases = new Set(currentUser.purchases);
+                const recommendations = [];
+
+                // Get user similarities
+                const userSimilarities = this.users
+                    .filter(u => u.id !== userId)
+                    .map(u => ({
+                        userId: u.id,
+                        similarity: this.calculateUserSimilarity(userId, u.id),
+                        purchases: u.purchases,
+                        ratings: u.ratings
+                    }))
+                    .sort((a, b) => b.similarity - a.similarity);
+
+                // Collaborative filtering recommendations
+                const collaborativeScores = {};
+                userSimilarities.slice(0, 3).forEach(similarUser => {
+                    similarUser.purchases.forEach(productId => {
+                        if (!userPurchases.has(productId)) {
+                            if (!collaborativeScores[productId]) {
+                                collaborativeScores[productId] = 0;
+                            }
+                            collaborativeScores[productId] += similarUser.similarity * (similarUser.ratings[productId] || 3);
+                        }
+                    });
+                });
+
+                // Content-based recommendations
+                const contentScores = {};
+                const purchasedProducts = this.products.filter(p => userPurchases.has(p.id));
+                
+                this.products.forEach(product => {
+                    if (!userPurchases.has(product.id)) {
+                        let contentScore = 0;
+                        purchasedProducts.forEach(purchasedProduct => {
+                            contentScore += this.calculateContentSimilarity(product, purchasedProduct);
+                        });
+                        contentScores[product.id] = contentScore / purchasedProducts.length;
+                    }
+                });
+
+                // Combine scores and generate final recommendations
+                const allProductIds = new Set([...Object.keys(collaborativeScores), ...Object.keys(contentScores)]);
+                
+                allProductIds.forEach(productId => {
+                    const collabScore = collaborativeScores[productId] || 0;
+                    const contentScore = contentScores[productId] || 0;
+                    const finalScore = (collabScore * 0.6) + (contentScore * 0.4);
+                    
+                    const product = this.products.find(p => p.id == productId);
+                    if (product) {
+                        recommendations.push({
+                            product,
+                            score: finalScore,
+                            confidence: Math.min(finalScore * 20, 100)
+                        });
+                    }
+                });
+
+                return recommendations
+                    .sort((a, b) => b.score - a.score)
+                    .slice(0, numRecommendations);
+            }
+        }
+
+        // Initialize the recommendation engine
+        const engine = new RecommendationEngine(userData, products);
+
+        // UI Functions
+        function initializeApp() {
+            const userSelect = document.getElementById('userSelect');
+            
+            userData.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = user.name;
+                userSelect.appendChild(option);
+            });
+
+            userSelect.addEventListener('change', handleUserSelection);
+        }
+
+        function handleUserSelection(event) {
+            const userId = parseInt(event.target.value);
+            if (!userId) {
+                resetDashboard();
+                return;
+            }
+
+            updateUserStats(userId);
+            updatePurchaseHistory(userId);
+            generateRecommendations(userId);
+        }
+
+        function resetDashboard() {
+            document.getElementById('totalPurchases').textContent = '0';
+            document.getElementById('totalSpent').textContent = '$0';
+            document.getElementById('purchaseItems').textContent = 'Select a user to view purchase history';
+            document.getElementById('recommendationsContent').innerHTML = '<div class="loading">Select a user to generate AI-powered recommendations...</div>';
+        }
+
+        function updateUserStats(userId) {
+            const user = userData.find(u => u.id === userId);
+            if (!user) return;
+
+            const totalPurchases = user.purchases.length;
+            const totalSpent = user.purchases.reduce((sum, productId) => {
+                const product = products.find(p => p.id === productId);
+                return sum + (product ? product.price : 0);
+            }, 0);
+
+            document.getElementById('totalPurchases').textContent = totalPurchases;
+            document.getElementById('totalSpent').textContent = `${totalSpent.toFixed(2)}`;
+        }
+
+        function updatePurchaseHistory(userId) {
+            const user = userData.find(u => u.id === userId);
+            if (!user) return;
+
+            const purchaseItemsContainer = document.getElementById('purchaseItems');
+            purchaseItemsContainer.innerHTML = '';
+
+            user.purchases.forEach(productId => {
+                const product = products.find(p => p.id === productId);
+                if (product) {
+                    const purchaseItem = document.createElement('div');
+                    purchaseItem.className = 'purchase-item';
+                    purchaseItem.textContent = `${product.emoji} ${product.name} - ${product.price}`;
+                    purchaseItemsContainer.appendChild(purchaseItem);
+                }
+            });
+        }
+
+        function generateRecommendations(userId) {
+            const recommendationsContainer = document.getElementById('recommendationsContent');
+            recommendationsContainer.innerHTML = '<div class="loading">Generating AI recommendations...</div>';
+
+            // Simulate AI processing delay
+            setTimeout(() => {
+                const recommendations = engine.generateRecommendations(userId);
+                displayRecommendations(recommendations);
+            }, 1500);
+        }
+
+        function displayRecommendations(recommendations) {
+            const recommendationsContainer = document.getElementById('recommendationsContent');
+            
+            if (recommendations.length === 0) {
+                recommendationsContainer.innerHTML = '<div class="loading">No recommendations available at this time.</div>';
+                return;
+            }
+
+            const productsGrid = document.createElement('div');
+            productsGrid.className = 'products-grid';
+
+            recommendations.forEach(recommendation => {
+                const { product, confidence } = recommendation;
+                
+                const productCard = document.createElement('div');
+                productCard.className = 'product-card';
+                
+                productCard.innerHTML = `
+                    <div class="product-image">${product.emoji}</div>
+                    <div class="product-name">${product.name}</div>
+                    <div class="product-category">${product.category}</div>
+                    <div class="product-price">${product.price}</div>
+                    <div class="recommendation-score">
+                        ${confidence.toFixed(0)}% Match
+                    </div>
+                `;
+                
+                productsGrid.appendChild(productCard);
+            });
+
+            recommendationsContainer.innerHTML = '';
+            recommendationsContainer.appendChild(productsGrid);
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+</body>
+</html>
